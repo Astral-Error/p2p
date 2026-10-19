@@ -1,15 +1,23 @@
 package com.project.p2p.client.ui;
 
+import com.project.p2p.client.ui.common.AppIcons;
 import com.project.p2p.common.network.MessageDeliveryState;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 
 /**
- * Custom JavaFX ListCell rendering styled message bubbles with timestamps and delivery badges.
+ * Custom ListCell rendering modern Primer-styled message bubbles with vector
+ * delivery badges, accessible tooltips, and secondary timestamps.
  */
 public class ChatMessageCell extends ListCell<ChatMessageModel> {
 
@@ -20,85 +28,71 @@ public class ChatMessageCell extends ListCell<ChatMessageModel> {
         if (empty || item == null) {
             setText(null);
             setGraphic(null);
-            setStyle("-fx-background-color: transparent;");
+            setStyle("-fx-background-color: transparent; -fx-padding: 0;");
             return;
         }
 
         boolean isOut = item.isOutgoing();
 
-        // Message text
-        Label textLabel = new Label(item.getText());
-        textLabel.setWrapText(true);
-        textLabel.setMaxWidth(360);
-        textLabel.setStyle(isOut
-                ? "-fx-text-fill: white; -fx-font-size: 13px;"
-                : "-fx-text-fill: #1e293b; -fx-font-size: 13px;");
+        // Message text using Text inside TextFlow for natural wrapping without truncation
+        Text textNode = new Text(item.getText());
+        textNode.getStyleClass().add(isOut ? "message-text-outgoing" : "message-text-incoming");
 
-        // Timestamp and status info
+        TextFlow textFlow = new TextFlow(textNode);
+        textFlow.maxWidthProperty().bind(widthProperty().multiply(0.65));
+
+        // Timestamp
         Label timeLabel = new Label(item.getFormattedTime());
-        timeLabel.setStyle(isOut
-                ? "-fx-text-fill: rgba(255,255,255,0.7); -fx-font-size: 10px;"
-                : "-fx-text-fill: #64748b; -fx-font-size: 10px;");
+        timeLabel.getStyleClass().add(isOut ? "message-meta-outgoing" : "message-meta-incoming");
 
         HBox metaBox = new HBox(6);
         metaBox.setAlignment(isOut ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
         metaBox.getChildren().add(timeLabel);
 
+        // Vector delivery state badge for outgoing messages
         if (isOut) {
-            Label statusBadge = new Label(getStatusText(item.getDeliveryState()));
-            statusBadge.setStyle(getStatusStyle(item.getDeliveryState()));
-            metaBox.getChildren().add(statusBadge);
+            Node statusIcon = buildStatusIcon(item.getDeliveryState());
+            metaBox.getChildren().add(statusIcon);
 
             item.deliveryStateProperty().addListener((obs, oldVal, newVal) -> {
-                statusBadge.setText(getStatusText(newVal));
-                statusBadge.setStyle(getStatusStyle(newVal));
+                metaBox.getChildren().set(metaBox.getChildren().size() - 1, buildStatusIcon(newVal));
             });
         }
 
-        VBox bubble = new VBox(4, textLabel, metaBox);
-        bubble.setPadding(new Insets(8, 12, 8, 12));
-        bubble.setMaxWidth(380);
-
-        if (isOut) {
-            // Modern rounded outgoing bubble (Indigo/Blue gradient)
-            bubble.setStyle("-fx-background-color: linear-gradient(to bottom right, #3b82f6, #2563eb);" +
-                    "-fx-background-radius: 14 14 2 14;" +
-                    "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 4, 0, 0, 1);");
-        } else {
-            // Modern rounded incoming bubble (Soft gray)
-            bubble.setStyle("-fx-background-color: #f1f5f9;" +
-                    "-fx-background-radius: 14 14 14 2;" +
-                    "-fx-border-color: #e2e8f0; -fx-border-radius: 14 14 14 2; -fx-border-width: 1;" +
-                    "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 3, 0, 0, 1);");
-        }
+        VBox bubble = new VBox(4, textFlow, metaBox);
+        bubble.maxWidthProperty().bind(widthProperty().multiply(0.68));
+        bubble.getStyleClass().add(isOut ? "message-bubble-outgoing" : "message-bubble-incoming");
 
         HBox container = new HBox(bubble);
-        container.setPadding(new Insets(3, 8, 3, 8));
+        container.setPadding(new Insets(4, 16, 4, 16));
         container.setAlignment(isOut ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
 
-        setStyle("-fx-background-color: transparent;");
+        setStyle("-fx-background-color: transparent; -fx-padding: 0;");
         setGraphic(container);
     }
 
-    private String getStatusText(MessageDeliveryState state) {
-        if (state == null) return "…";
-        return switch (state) {
-            case PENDING -> "⏳";
-            case SENT -> "✓";
-            case DELIVERED -> "✓✓";
-            case READ -> "✓✓";
-            case FAILED -> "✕";
-        };
-    }
+    private Node buildStatusIcon(MessageDeliveryState state) {
+        if (state == null) {
+            return AppIcons.create(AppIcons.Icon.CLOCK, 12, Color.web("rgba(255, 255, 255, 0.6)"));
+        }
 
-    private String getStatusStyle(MessageDeliveryState state) {
-        if (state == null) return "-fx-text-fill: rgba(255,255,255,0.7); -fx-font-size: 10px;";
-        return switch (state) {
-            case PENDING -> "-fx-text-fill: rgba(255,255,255,0.6); -fx-font-size: 10px;";
-            case SENT -> "-fx-text-fill: rgba(255,255,255,0.8); -fx-font-size: 11px; -fx-font-weight: bold;";
-            case DELIVERED -> "-fx-text-fill: #cbd5e1; -fx-font-size: 11px; -fx-font-weight: bold;";
-            case READ -> "-fx-text-fill: #38bdf8; -fx-font-size: 11px; -fx-font-weight: bold;";
-            case FAILED -> "-fx-text-fill: #f87171; -fx-font-size: 11px; -fx-font-weight: bold;";
+        Node iconNode = switch (state) {
+            case PENDING -> AppIcons.create(AppIcons.Icon.CLOCK, 12, Color.web("rgba(255, 255, 255, 0.6)"));
+            case SENT -> AppIcons.create(AppIcons.Icon.CHECK, 12, Color.web("rgba(255, 255, 255, 0.8)"));
+            case DELIVERED -> AppIcons.create(AppIcons.Icon.DOUBLE_CHECK, 13, Color.web("#e6edf3"));
+            case READ -> AppIcons.create(AppIcons.Icon.DOUBLE_CHECK, 13, Color.web("#79c0ff"));
+            case FAILED -> AppIcons.create(AppIcons.Icon.ALERT_CIRCLE, 12, Color.web("#ff7b72"));
         };
+
+        String tooltipText = switch (state) {
+            case PENDING -> "Sending...";
+            case SENT -> "Sent to peer";
+            case DELIVERED -> "Delivered to peer device";
+            case READ -> "Read by peer";
+            case FAILED -> "Failed to deliver";
+        };
+
+        Tooltip.install(iconNode, new Tooltip(tooltipText));
+        return iconNode;
     }
 }

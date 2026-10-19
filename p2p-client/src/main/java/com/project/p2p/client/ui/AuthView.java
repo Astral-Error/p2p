@@ -1,24 +1,23 @@
 package com.project.p2p.client.ui;
 
-import com.project.p2p.client.crypto.ClientKeyManager;
 import com.project.p2p.client.model.AuthResult;
 import com.project.p2p.client.service.CoordinationServiceClient;
+import com.project.p2p.client.ui.common.AppIcons;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
- * Authentication and Local Key Setup View.
- * Handles user login, registration, and keystore passphrase unlocking.
+ * Modern Authentication and Keystore Setup View adhering to GitHub Primer design foundations.
+ * Supports switching between Sign In and Account Creation with cryptographic passphrase protection.
  */
-public class AuthView extends VBox {
+public class AuthView extends StackPane {
 
     public interface AuthSuccessHandler {
         void onAuthenticated(String username, String passphrase, AuthResult authResult);
@@ -27,112 +26,164 @@ public class AuthView extends VBox {
     private final CoordinationServiceClient coordinationClient;
     private final AuthSuccessHandler successHandler;
 
+    private boolean isRegisterMode = false;
+
     private final TextField serverUrlField;
     private final TextField usernameField;
     private final PasswordField passwordField;
     private final PasswordField passphraseField;
-    private final Button loginButton;
-    private final Button registerButton;
-    private final Label statusLabel;
+    private final Button submitButton;
+    private final Button signInTabBtn;
+    private final Button registerTabBtn;
+    private final Label statusBanner;
     private final ProgressIndicator progressIndicator;
+    private final VBox serverConfigContainer;
+    private final Hyperlink toggleServerConfigLink;
 
     public AuthView(CoordinationServiceClient coordinationClient, AuthSuccessHandler successHandler) {
         this.coordinationClient = Objects.requireNonNull(coordinationClient);
         this.successHandler = Objects.requireNonNull(successHandler);
 
+        getStyleClass().add("auth-root-pane");
         setAlignment(Pos.CENTER);
         setPadding(new Insets(30));
-        setSpacing(20);
-        setStyle("-fx-background-color: #f1f5f9;");
 
-        VBox card = new VBox(16);
-        card.setMaxWidth(420);
-        card.setPadding(new Insets(30));
-        card.setAlignment(Pos.CENTER);
-        card.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 12; " +
-                "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 12, 0, 0, 4);");
+        VBox card = new VBox(20);
+        card.getStyleClass().add("auth-card");
+        card.setMaxWidth(460);
+        card.setAlignment(Pos.TOP_CENTER);
 
+        // Header: Brand & Security Mission
+        Node shieldLogo = AppIcons.create(AppIcons.Icon.SHIELD, 32, Color.web("#2f81f7"));
         Label appTitle = new Label("P2P Encrypted Chat");
-        appTitle.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        appTitle.getStyleClass().add("auth-header-title");
 
-        Label appSubtitle = new Label("End-to-End Encrypted Peer-to-Peer Messaging");
-        appSubtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+        Label appSubtitle = new Label("Decentralized \u00B7 End-to-End Encrypted \u00B7 Zero-Knowledge");
+        appSubtitle.getStyleClass().add("auth-header-subtitle");
 
-        GridPane formGrid = new GridPane();
-        formGrid.setHgap(10);
-        formGrid.setVgap(12);
-        formGrid.setAlignment(Pos.CENTER);
+        VBox headerBox = new VBox(8, shieldLogo, appTitle, appSubtitle);
+        headerBox.setAlignment(Pos.CENTER);
 
-        // Server URL
-        Label serverLabel = new Label("Coordination Server:");
-        serverLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569; -fx-font-weight: bold;");
-        serverUrlField = new TextField("http://localhost:8080");
-        serverUrlField.setPrefWidth(240);
+        // Mode Switcher (Segmented Buttons: Sign In / Create Account)
+        signInTabBtn = new Button("Sign In");
+        signInTabBtn.getStyleClass().addAll("auth-tab-selected");
+        signInTabBtn.setStyle("-fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand; -fx-background-radius: 6 0 0 6;");
 
-        // Username
-        Label userLabel = new Label("Username:");
-        userLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569; -fx-font-weight: bold;");
+        registerTabBtn = new Button("Create Account");
+        registerTabBtn.getStyleClass().addAll("auth-tab-unselected");
+        registerTabBtn.setStyle("-fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand; -fx-background-radius: 0 6 6 0; -fx-border-color: -color-border-default; -fx-border-width: 1 1 1 0;");
+
+        signInTabBtn.setOnAction(e -> setMode(false));
+        registerTabBtn.setOnAction(e -> setMode(true));
+
+        HBox modeSwitcher = new HBox(signInTabBtn, registerTabBtn);
+        modeSwitcher.setAlignment(Pos.CENTER);
+
+        // Status Banner (Errors / Progress)
+        statusBanner = new Label();
+        statusBanner.setWrapText(true);
+        statusBanner.setVisible(false);
+        statusBanner.setManaged(false);
+        statusBanner.setMaxWidth(Double.MAX_VALUE);
+        statusBanner.setStyle("-fx-padding: 8 12; -fx-background-radius: 6; -fx-font-size: 12px;");
+
+        // Form Fields
+        VBox formContainer = new VBox(14);
+        formContainer.setAlignment(Pos.CENTER_LEFT);
+
+        // 1. Username
+        Label userLabel = new Label("Username");
+        userLabel.getStyleClass().add("auth-field-label");
         usernameField = new TextField();
-        usernameField.setPromptText("e.g. alice");
+        usernameField.setPromptText("Enter your username");
+        usernameField.getStyleClass().add("auth-text-field");
+        VBox userBox = new VBox(4, userLabel, usernameField);
 
-        // Password
-        Label passLabel = new Label("Account Password:");
-        passLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569; -fx-font-weight: bold;");
+        // 2. Account Password
+        Label passLabel = new Label("Account Password");
+        passLabel.getStyleClass().add("auth-field-label");
         passwordField = new PasswordField();
-        passwordField.setPromptText("Server account password");
+        passwordField.setPromptText("Server authentication password");
+        passwordField.getStyleClass().add("auth-text-field");
+        VBox passBox = new VBox(4, passLabel, passwordField);
 
-        // Key Passphrase
-        Label keyLabel = new Label("Local Key Passphrase:");
-        keyLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569; -fx-font-weight: bold;");
+        // 3. Local Key Passphrase
+        Label keyLabel = new Label("Local Keystore Passphrase");
+        keyLabel.getStyleClass().add("auth-field-label");
+        Label keyHelper = new Label("Encrypts your private Ed25519/X25519 identity key on disk via PBKDF2/AES-GCM.");
+        keyHelper.getStyleClass().add("auth-field-helper");
+        keyHelper.setWrapText(true);
         passphraseField = new PasswordField();
-        passphraseField.setPromptText("Protects private keys on disk");
+        passphraseField.setPromptText("Protects cryptographic keystore on this device");
+        passphraseField.getStyleClass().add("auth-text-field");
+        VBox keyBox = new VBox(4, keyLabel, keyHelper, passphraseField);
 
-        formGrid.add(serverLabel, 0, 0);
-        formGrid.add(serverUrlField, 1, 0);
-        formGrid.add(userLabel, 0, 1);
-        formGrid.add(usernameField, 1, 1);
-        formGrid.add(passLabel, 0, 2);
-        formGrid.add(passwordField, 1, 2);
-        formGrid.add(keyLabel, 0, 3);
-        formGrid.add(passphraseField, 1, 3);
+        // 4. Advanced Server Configuration (Collapsible)
+        toggleServerConfigLink = new Hyperlink("Server Settings \u25BE");
+        toggleServerConfigLink.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 11px; -fx-padding: 0;");
+        toggleServerConfigLink.setOnAction(e -> toggleServerConfig());
 
-        loginButton = new Button("Sign In");
-        loginButton.setDefaultButton(true);
-        loginButton.setStyle("-fx-background-color: #2563eb; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 6;");
-        loginButton.setOnAction(e -> handleAuth(false));
+        Label serverLabel = new Label("Coordination Server URL");
+        serverLabel.getStyleClass().add("auth-field-label");
+        serverUrlField = new TextField("http://localhost:8080");
+        serverUrlField.getStyleClass().add("auth-text-field");
 
-        registerButton = new Button("Create Account");
-        registerButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #2563eb; -fx-border-color: #2563eb; -fx-border-radius: 6; -fx-padding: 7 16;");
-        registerButton.setOnAction(e -> handleAuth(true));
+        serverConfigContainer = new VBox(4, serverLabel, serverUrlField);
+        serverConfigContainer.setVisible(false);
+        serverConfigContainer.setManaged(false);
 
-        HBox btnBox = new HBox(12, registerButton, loginButton);
-        btnBox.setAlignment(Pos.CENTER_RIGHT);
-        btnBox.setPadding(new Insets(10, 0, 0, 0));
+        formContainer.getChildren().addAll(userBox, passBox, keyBox, toggleServerConfigLink, serverConfigContainer);
 
+        // Submit Action Button
         progressIndicator = new ProgressIndicator();
-        progressIndicator.setMaxSize(24, 24);
+        progressIndicator.setMaxSize(16, 16);
         progressIndicator.setVisible(false);
 
-        statusLabel = new Label();
-        statusLabel.setWrapText(true);
-        statusLabel.setStyle("-fx-font-size: 12px;");
+        submitButton = new Button("Sign In");
+        submitButton.setDefaultButton(true);
+        submitButton.setMaxWidth(Double.MAX_VALUE);
+        submitButton.setStyle("-fx-background-color: -color-accent-emphasis; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
+        submitButton.setOnAction(e -> handleAuth());
 
-        HBox statusBox = new HBox(10, progressIndicator, statusLabel);
-        statusBox.setAlignment(Pos.CENTER);
+        HBox actionBox = new HBox(8, progressIndicator, submitButton);
+        HBox.setHgrow(submitButton, Priority.ALWAYS);
+        actionBox.setAlignment(Pos.CENTER);
 
         card.getChildren().addAll(
-                appTitle,
-                appSubtitle,
-                new Separator(),
-                formGrid,
-                btnBox,
-                statusBox
+                headerBox,
+                modeSwitcher,
+                statusBanner,
+                formContainer,
+                actionBox
         );
 
         getChildren().add(card);
     }
 
-    private void handleAuth(boolean isRegister) {
+    private void setMode(boolean isRegister) {
+        this.isRegisterMode = isRegister;
+        statusBanner.setVisible(false);
+        statusBanner.setManaged(false);
+
+        if (isRegister) {
+            registerTabBtn.setStyle("-fx-background-color: -color-canvas-overlay; -fx-text-fill: -color-fg-default; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand; -fx-background-radius: 0 6 6 0; -fx-border-color: -color-accent-fg; -fx-border-width: 1;");
+            signInTabBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: -color-fg-muted; -fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand; -fx-background-radius: 6 0 0 6; -fx-border-color: -color-border-default; -fx-border-width: 1 0 1 1;");
+            submitButton.setText("Create Account & Generate Keys");
+        } else {
+            signInTabBtn.setStyle("-fx-background-color: -color-canvas-overlay; -fx-text-fill: -color-fg-default; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand; -fx-background-radius: 6 0 0 6; -fx-border-color: -color-accent-fg; -fx-border-width: 1;");
+            registerTabBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: -color-fg-muted; -fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand; -fx-background-radius: 0 6 6 0; -fx-border-color: -color-border-default; -fx-border-width: 1 1 1 0;");
+            submitButton.setText("Sign In");
+        }
+    }
+
+    private void toggleServerConfig() {
+        boolean show = !serverConfigContainer.isVisible();
+        serverConfigContainer.setVisible(show);
+        serverConfigContainer.setManaged(show);
+        toggleServerConfigLink.setText(show ? "Server Settings \u25B4" : "Server Settings \u25BE");
+    }
+
+    private void handleAuth() {
         String username = usernameField.getText().trim();
         String password = passwordField.getText();
         String passphrase = passphraseField.getText();
@@ -143,15 +194,14 @@ public class AuthView extends VBox {
         }
 
         if (passphrase.isEmpty()) {
-            showError("Local key passphrase is required to protect your private key.");
+            showError("Local key passphrase is required to protect your private cryptographic identity.");
             return;
         }
 
         setLoading(true);
-        statusLabel.setStyle("-fx-text-fill: #475569; -fx-font-size: 12px;");
-        statusLabel.setText(isRegister ? "Registering account..." : "Authenticating with server...");
+        showInfo(isRegisterMode ? "Registering account with coordination server..." : "Authenticating with server...");
 
-        var authFuture = isRegister
+        var authFuture = isRegisterMode
                 ? coordinationClient.registerAsync(username, password)
                 : coordinationClient.loginAsync(username, password);
 
@@ -159,10 +209,9 @@ public class AuthView extends VBox {
             Platform.runLater(() -> {
                 setLoading(false);
                 if (error != null) {
-                    showError("Auth failed: " + getRootMessage(error));
+                    showError("Authentication failed: " + getRootMessage(error));
                 } else {
-                    statusLabel.setStyle("-fx-text-fill: #16a34a; -fx-font-size: 12px;");
-                    statusLabel.setText("Success! Initializing local identity...");
+                    showSuccess("Success! Initializing local cryptographic identity...");
                     String canonicalUsername = (authResult != null && authResult.username() != null)
                             ? authResult.username().trim().toLowerCase()
                             : username.trim().toLowerCase();
@@ -174,16 +223,33 @@ public class AuthView extends VBox {
 
     private void setLoading(boolean loading) {
         progressIndicator.setVisible(loading);
-        loginButton.setDisable(loading);
-        registerButton.setDisable(loading);
+        submitButton.setDisable(loading);
         usernameField.setDisable(loading);
         passwordField.setDisable(loading);
         passphraseField.setDisable(loading);
+        signInTabBtn.setDisable(loading);
+        registerTabBtn.setDisable(loading);
     }
 
     private void showError(String message) {
-        statusLabel.setStyle("-fx-text-fill: #dc2626; -fx-font-size: 12px;");
-        statusLabel.setText(message);
+        statusBanner.setText(message);
+        statusBanner.setStyle("-fx-background-color: -color-danger-subtle; -fx-border-color: -color-danger-emphasis; -fx-border-radius: 6; -fx-background-radius: 6; -fx-text-fill: -color-danger-fg; -fx-font-size: 12px; -fx-padding: 8 12;");
+        statusBanner.setVisible(true);
+        statusBanner.setManaged(true);
+    }
+
+    private void showInfo(String message) {
+        statusBanner.setText(message);
+        statusBanner.setStyle("-fx-background-color: -color-accent-subtle; -fx-border-color: -color-accent-fg; -fx-border-radius: 6; -fx-background-radius: 6; -fx-text-fill: -color-accent-fg; -fx-font-size: 12px; -fx-padding: 8 12;");
+        statusBanner.setVisible(true);
+        statusBanner.setManaged(true);
+    }
+
+    private void showSuccess(String message) {
+        statusBanner.setText(message);
+        statusBanner.setStyle("-fx-background-color: -color-success-subtle; -fx-border-color: -color-success-emphasis; -fx-border-radius: 6; -fx-background-radius: 6; -fx-text-fill: -color-success-fg; -fx-font-size: 12px; -fx-padding: 8 12;");
+        statusBanner.setVisible(true);
+        statusBanner.setManaged(true);
     }
 
     private String getRootMessage(Throwable t) {

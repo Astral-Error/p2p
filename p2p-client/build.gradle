@@ -19,8 +19,12 @@ dependencies {
     implementation "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
     implementation "org.openjfx:javafx-fxml:${javafxVersion}:${javafxPlatform}"
 
+    // Modern Design System Theme
+    implementation 'io.github.mkpaz:atlantafx-base:2.1.0'
+
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation "org.openjfx:javafx-swing:${javafxVersion}:${javafxPlatform}"
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

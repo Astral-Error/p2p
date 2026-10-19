@@ -171,11 +171,8 @@ public class EncryptedPeerSession implements PeerConnectionListener {
         if (oldState == newState) {
             return;
         }
-        // Don't transition out of CLOSED or FAILED unless closing from FAILED
-        if (oldState == SessionState.CLOSED) {
-            return;
-        }
-        if (oldState == SessionState.FAILED && newState != SessionState.CLOSED) {
+        // Don't transition out of CLOSED or FAILED
+        if (oldState == SessionState.CLOSED || oldState == SessionState.FAILED) {
             return;
         }
 

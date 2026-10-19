@@ -2,101 +2,202 @@ package com.project.p2p.client.ui;
 
 import com.project.p2p.client.crypto.TrustStore;
 import com.project.p2p.client.network.EncryptedPeerSession;
+import com.project.p2p.client.ui.common.AppIcons;
+import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Tooltip;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.util.Duration;
 
 import java.util.function.Consumer;
 
 /**
- * Collapsible panel displaying peer verification status, Ed25519 cryptographic fingerprint,
- * TOFU trust controls, and connection diagnostics.
+ * Security and Identity Inspector Panel.
+ * Communicates real cryptographic identity verification, TOFU trust state,
+ * ephemeral key agreement, and live socket network telemetry.
  */
 public class PeerInfoPanel extends VBox {
 
     private final Label peerNameLabel;
+    private final Label trustStatusBadge;
+    private final Label trustExplanationLabel;
     private final Label fingerprintLabel;
-    private final Label trustStatusLabel;
-    private final Label connectionDetailsLabel;
-    private final Label cipherSuiteLabel;
-    private final Label statsLabel;
+    private final Button copyFingerprintBtn;
     private final Button trustButton;
+
+    // Cryptographic Session Details
+    private final Label sessionStatusLabel;
+    private final Label cipherSuiteLabel;
+    private final Label keyAgreementLabel;
+    private final Label sessionRoleLabel;
+
+    // Network Telemetry Details
+    private final Label localEndpointLabel;
+    private final Label remoteEndpointLabel;
+    private final Label framesSentLabel;
+    private final Label framesRecvLabel;
 
     private String currentPeerUser;
     private String currentFingerprint;
     private final TrustStore trustStore;
     private Consumer<String> onTrustChanged;
+    private Runnable onCloseRequested;
 
     public PeerInfoPanel(TrustStore trustStore) {
         this.trustStore = trustStore;
 
-        setSpacing(10);
-        setPadding(new Insets(14));
-        setStyle("-fx-background-color: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 0 1;");
-        setPrefWidth(280);
+        getStyleClass().add("inspector-container");
+        setPrefWidth(320);
+        setMinWidth(280);
+        setMaxWidth(380);
+        setSpacing(14);
 
-        Label headerLabel = new Label("SECURITY & IDENTITY");
-        headerLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #64748b; -fx-letter-spacing: 1px;");
+        // Header with title and close button
+        Label headerTitle = new Label("SECURITY & IDENTITY");
+        headerTitle.getStyleClass().add("inspector-header-title");
+
+        Button closeBtn = new Button();
+        closeBtn.setGraphic(AppIcons.create(AppIcons.Icon.CLOSE, 14, Color.web("#8b949e")));
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-padding: 4; -fx-cursor: hand;");
+        closeBtn.setTooltip(new Tooltip("Hide Security Inspector"));
+        closeBtn.setOnAction(e -> {
+            if (onCloseRequested != null) {
+                onCloseRequested.run();
+            }
+        });
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox topBar = new HBox(headerTitle, spacer, closeBtn);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        // --- Card 1: Peer Identity & TOFU ---
+        Label identityCardTitle = new Label("PEER IDENTITY");
+        identityCardTitle.getStyleClass().add("inspector-card-title");
 
         peerNameLabel = new Label("No Peer Selected");
-        peerNameLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        peerNameLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: -color-fg-default;");
 
-        // Trust badge
-        trustStatusLabel = new Label("UNVERIFIED");
-        trustStatusLabel.setPadding(new Insets(3, 8, 3, 8));
-        updateTrustBadge(false, false);
+        trustStatusBadge = new Label("UNVERIFIED");
+        trustStatusBadge.getStyleClass().add("trust-badge-unverified");
 
-        HBox topBox = new HBox(8, peerNameLabel, trustStatusLabel);
-        topBox.setAlignment(Pos.CENTER_LEFT);
+        HBox peerIdentityRow = new HBox(8, peerNameLabel, trustStatusBadge);
+        peerIdentityRow.setAlignment(Pos.CENTER_LEFT);
 
-        // Fingerprint section
-        Label fpHeader = new Label("IDENTITY FINGERPRINT (SHA-256)");
-        fpHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #94a3b8;");
+        trustExplanationLabel = new Label("Identity key has not yet been pinned in local trust store.");
+        trustExplanationLabel.setWrapText(true);
+        trustExplanationLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-muted;");
+
+        Label fpTitle = new Label("Ed25519 Identity Fingerprint (SHA-256):");
+        fpTitle.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-subtle; -fx-padding: 4 0 0 0;");
 
         fingerprintLabel = new Label("None");
         fingerprintLabel.setWrapText(true);
-        fingerprintLabel.setStyle("-fx-font-family: monospace; -fx-font-size: 11px; -fx-text-fill: #334155; " +
-                "-fx-background-color: #ffffff; -fx-padding: 8px; -fx-border-color: #cbd5e1; -fx-border-radius: 4; -fx-background-radius: 4;");
+        fingerprintLabel.getStyleClass().add("fingerprint-box");
+        fingerprintLabel.setMaxWidth(Double.MAX_VALUE);
+
+        copyFingerprintBtn = new Button("Copy Fingerprint");
+        copyFingerprintBtn.setGraphic(AppIcons.create(AppIcons.Icon.COPY, 13, Color.web("#8b949e")));
+        copyFingerprintBtn.setStyle("-fx-font-size: 11px; -fx-padding: 4 10; -fx-cursor: hand;");
+        copyFingerprintBtn.setOnAction(e -> handleCopyFingerprint());
+        copyFingerprintBtn.setDisable(true);
 
         trustButton = new Button("Trust Peer Key (TOFU)");
+        trustButton.setGraphic(AppIcons.create(AppIcons.Icon.SHIELD_CHECK, 14, Color.WHITE));
         trustButton.setMaxWidth(Double.MAX_VALUE);
-        trustButton.setStyle("-fx-background-color: #0284c7; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 6 12;");
+        trustButton.setStyle("-fx-background-color: -color-accent-emphasis; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 7 14; -fx-background-radius: 6;");
         trustButton.setOnAction(e -> handleTrustClicked());
         trustButton.setDisable(true);
 
-        // Diagnostics section
-        Label diagHeader = new Label("CONNECTION DIAGNOSTICS");
-        diagHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #94a3b8; -fx-padding: 10 0 0 0;");
-
-        cipherSuiteLabel = new Label("Cipher: AES-256-GCM / X25519");
-        cipherSuiteLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
-
-        connectionDetailsLabel = new Label("Status: Disconnected");
-        connectionDetailsLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
-
-        statsLabel = new Label("Sent: 0 frames | Received: 0 frames");
-        statsLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
-
-        VBox diagBox = new VBox(6, diagHeader, cipherSuiteLabel, connectionDetailsLabel, statsLabel);
-        diagBox.setPadding(new Insets(10));
-        diagBox.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 6; -fx-background-radius: 6;");
-
-        getChildren().addAll(
-                headerLabel,
-                topBox,
-                fpHeader,
+        VBox identityCard = new VBox(8,
+                identityCardTitle,
+                peerIdentityRow,
+                trustExplanationLabel,
+                fpTitle,
                 fingerprintLabel,
-                trustButton,
-                diagBox
+                copyFingerprintBtn,
+                trustButton
         );
+        identityCard.getStyleClass().add("inspector-card");
+
+        // --- Card 2: Cryptographic Session ---
+        Label cryptoCardTitle = new Label("ENCRYPTED SESSION");
+        cryptoCardTitle.getStyleClass().add("inspector-card-title");
+
+        sessionStatusLabel = createTelemetryRowLabel("Disconnected");
+        cipherSuiteLabel = createTelemetryRowLabel("AES-256-GCM (256-bit)");
+        keyAgreementLabel = createTelemetryRowLabel("X25519 (ECDH)");
+        sessionRoleLabel = createTelemetryRowLabel("None");
+
+        GridPane cryptoGrid = new GridPane();
+        cryptoGrid.setHgap(8);
+        cryptoGrid.setVgap(6);
+        addGridRow(cryptoGrid, 0, "Session:", sessionStatusLabel);
+        addGridRow(cryptoGrid, 1, "Cipher:", cipherSuiteLabel);
+        addGridRow(cryptoGrid, 2, "Key Exchange:", keyAgreementLabel);
+        addGridRow(cryptoGrid, 3, "Role:", sessionRoleLabel);
+
+        VBox cryptoCard = new VBox(8, cryptoCardTitle, cryptoGrid);
+        cryptoCard.getStyleClass().add("inspector-card");
+
+        // --- Card 3: Network Diagnostics ---
+        Label networkCardTitle = new Label("NETWORK TELEMETRY");
+        networkCardTitle.getStyleClass().add("inspector-card-title");
+
+        localEndpointLabel = createTelemetryRowLabel("None");
+        remoteEndpointLabel = createTelemetryRowLabel("None");
+        framesSentLabel = createTelemetryRowLabel("0");
+        framesRecvLabel = createTelemetryRowLabel("0");
+
+        GridPane networkGrid = new GridPane();
+        networkGrid.setHgap(8);
+        networkGrid.setVgap(6);
+        addGridRow(networkGrid, 0, "Local:", localEndpointLabel);
+        addGridRow(networkGrid, 1, "Remote:", remoteEndpointLabel);
+        addGridRow(networkGrid, 2, "Frames Sent:", framesSentLabel);
+        addGridRow(networkGrid, 3, "Frames Recv:", framesRecvLabel);
+
+        VBox networkCard = new VBox(8, networkCardTitle, networkGrid);
+        networkCard.getStyleClass().add("inspector-card");
+
+        VBox contentBox = new VBox(12, topBar, identityCard, cryptoCard, networkCard);
+        contentBox.setFillWidth(true);
+
+        ScrollPane scrollPane = new ScrollPane(contentBox);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0;");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        getChildren().add(scrollPane);
+    }
+
+    private void addGridRow(GridPane grid, int row, String labelText, Label valueLabel) {
+        Label lbl = new Label(labelText);
+        lbl.getStyleClass().add("telemetry-row-label");
+        grid.add(lbl, 0, row);
+        grid.add(valueLabel, 1, row);
+    }
+
+    private Label createTelemetryRowLabel(String defaultText) {
+        Label lbl = new Label(defaultText);
+        lbl.getStyleClass().add("telemetry-row-value");
+        lbl.setWrapText(true);
+        return lbl;
     }
 
     public void setOnTrustChanged(Consumer<String> callback) {
         this.onTrustChanged = callback;
+    }
+
+    public void setOnCloseRequested(Runnable callback) {
+        this.onCloseRequested = callback;
     }
 
     public void updatePeer(String username, String fingerprint, EncryptedPeerSession session) {
@@ -106,63 +207,124 @@ public class PeerInfoPanel extends VBox {
         if (username == null) {
             peerNameLabel.setText("No Peer Selected");
             fingerprintLabel.setText("None");
+            copyFingerprintBtn.setDisable(true);
             trustButton.setDisable(true);
-            updateTrustBadge(false, false);
-            connectionDetailsLabel.setText("Status: Disconnected");
-            statsLabel.setText("Sent: 0 frames | Received: 0 frames");
+            updateTrustState(false, false);
+            sessionStatusLabel.setText("Disconnected");
+            sessionRoleLabel.setText("None");
+            localEndpointLabel.setText("None");
+            remoteEndpointLabel.setText("None");
+            framesSentLabel.setText("0");
+            framesRecvLabel.setText("0");
             return;
         }
 
         peerNameLabel.setText(username);
-        fingerprintLabel.setText(fingerprint != null ? fingerprint : "Awaiting handshake...");
+        fingerprintLabel.setText(fingerprint != null ? formatFingerprint(fingerprint) : "Awaiting handshake...");
+        copyFingerprintBtn.setDisable(fingerprint == null);
 
         boolean isTrusted = (fingerprint != null) && trustStore.isTrusted(username, fingerprint);
         boolean hasChanged = (fingerprint != null) && trustStore.hasKeyChanged(username, fingerprint);
 
-        updateTrustBadge(isTrusted, hasChanged);
+        updateTrustState(isTrusted, hasChanged);
         trustButton.setDisable(fingerprint == null || isTrusted);
 
         if (session != null && session.getConnection().isConnected()) {
             String roleStr = session.isInitiator() ? "Initiator (Outbound)" : "Responder (Inbound)";
+            sessionRoleLabel.setText(roleStr);
+
             String localEp = String.valueOf(session.getConnection().getLocalAddress());
             String remoteEp = String.valueOf(session.getConnection().getRemoteAddress());
-            String statusStr = session.isSecureEstablished() ? "Connected & Encrypted" : session.getState().toString();
+            localEndpointLabel.setText(cleanEndpoint(localEp));
+            remoteEndpointLabel.setText(cleanEndpoint(remoteEp));
 
-            connectionDetailsLabel.setText(String.format("Status: %s\nRole: %s\nLocal: %s\nRemote: %s",
-                    statusStr, roleStr, localEp, remoteEp));
-            statsLabel.setText(String.format("Sent: %d frames | Recv: %d frames",
-                    session.getEncryptedFramesSent(), session.getEncryptedFramesReceived()));
+            if (session.isSecureEstablished()) {
+                sessionStatusLabel.setText("Connected & Encrypted");
+                sessionStatusLabel.setStyle("-fx-text-fill: -color-success-fg; -fx-font-weight: bold;");
+            } else {
+                sessionStatusLabel.setText(session.getState().toString());
+                sessionStatusLabel.setStyle("-fx-text-fill: -color-warning-fg; -fx-font-weight: bold;");
+            }
+
+            framesSentLabel.setText(String.valueOf(session.getEncryptedFramesSent()));
+            framesRecvLabel.setText(String.valueOf(session.getEncryptedFramesReceived()));
         } else if (session != null) {
-            connectionDetailsLabel.setText("Status: " + session.getState());
-            statsLabel.setText(String.format("Sent: %d frames | Recv: %d frames",
-                    session.getEncryptedFramesSent(), session.getEncryptedFramesReceived()));
+            sessionStatusLabel.setText(session.getState().toString());
+            sessionStatusLabel.setStyle("-fx-text-fill: -color-fg-muted;");
+            framesSentLabel.setText(String.valueOf(session.getEncryptedFramesSent()));
+            framesRecvLabel.setText(String.valueOf(session.getEncryptedFramesReceived()));
         } else {
-            connectionDetailsLabel.setText("Status: Disconnected");
-            statsLabel.setText("Sent: 0 frames | Recv: 0 frames");
+            sessionStatusLabel.setText("Disconnected");
+            sessionStatusLabel.setStyle("-fx-text-fill: -color-fg-muted;");
+            sessionRoleLabel.setText("None");
+            localEndpointLabel.setText("None");
+            remoteEndpointLabel.setText("None");
+            framesSentLabel.setText("0");
+            framesRecvLabel.setText("0");
         }
     }
 
-    private void updateTrustBadge(boolean trusted, boolean changed) {
+    private void updateTrustState(boolean trusted, boolean changed) {
+        trustStatusBadge.getStyleClass().removeAll("trust-badge-verified", "trust-badge-unverified", "trust-badge-danger");
         if (changed) {
-            trustStatusLabel.setText("KEY CHANGED ⚠");
-            trustStatusLabel.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: bold; -fx-font-size: 10px; -fx-background-radius: 4;");
+            trustStatusBadge.setText("KEY MISMATCH (MITM ALERT)");
+            trustStatusBadge.getStyleClass().add("trust-badge-danger");
+            trustExplanationLabel.setText("CRITICAL: Peer's Ed25519 identity key differs from previously trusted key!");
+            trustExplanationLabel.setStyle("-fx-text-fill: -color-danger-fg; -fx-font-size: 11px; -fx-font-weight: bold;");
         } else if (trusted) {
-            trustStatusLabel.setText("VERIFIED ✓");
-            trustStatusLabel.setStyle("-fx-background-color: #dcfce7; -fx-text-fill: #16a34a; -fx-font-weight: bold; -fx-font-size: 10px; -fx-background-radius: 4;");
+            trustStatusBadge.setText("VERIFIED (TOFU)");
+            trustStatusBadge.getStyleClass().add("trust-badge-verified");
+            trustExplanationLabel.setText("Peer identity is trusted. Key matches recorded Trust-on-First-Use fingerprint.");
+            trustExplanationLabel.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 11px;");
         } else {
-            trustStatusLabel.setText("UNVERIFIED");
-            trustStatusLabel.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-font-weight: bold; -fx-font-size: 10px; -fx-background-radius: 4;");
+            trustStatusBadge.setText("UNVERIFIED");
+            trustStatusBadge.getStyleClass().add("trust-badge-unverified");
+            trustExplanationLabel.setText("Identity key is fresh. Click 'Trust Peer Key' below to pin to local trust store.");
+            trustExplanationLabel.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 11px;");
         }
     }
 
     private void handleTrustClicked() {
         if (currentPeerUser != null && currentFingerprint != null) {
             trustStore.trustFingerprint(currentPeerUser, currentFingerprint);
-            updateTrustBadge(true, false);
+            updateTrustState(true, false);
             trustButton.setDisable(true);
             if (onTrustChanged != null) {
                 onTrustChanged.accept(currentPeerUser);
             }
         }
+    }
+
+    private void handleCopyFingerprint() {
+        if (currentFingerprint != null) {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent content = new ClipboardContent();
+            content.putString(currentFingerprint);
+            clipboard.setContent(content);
+
+            String originalText = copyFingerprintBtn.getText();
+            copyFingerprintBtn.setText("Copied to Clipboard!");
+            PauseTransition pt = new PauseTransition(Duration.seconds(2));
+            pt.setOnFinished(e -> copyFingerprintBtn.setText(originalText));
+            pt.play();
+        }
+    }
+
+    private String formatFingerprint(String fp) {
+        if (fp == null) return "None";
+        // Format SHA256:xx:xx into two clean rows if long
+        if (fp.startsWith("SHA256:") && fp.length() > 40) {
+            int mid = fp.indexOf(':', 40);
+            if (mid > 0) {
+                return fp.substring(0, mid) + "\n" + fp.substring(mid + 1);
+            }
+        }
+        return fp;
+    }
+
+    private String cleanEndpoint(String ep) {
+        if (ep == null) return "None";
+        if (ep.startsWith("/")) return ep.substring(1);
+        return ep;
     }
 }

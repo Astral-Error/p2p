@@ -7,15 +7,21 @@ import com.project.p2p.client.network.EncryptedPeerSession;
 import com.project.p2p.client.network.PeerNetworkService;
 import com.project.p2p.client.network.SessionState;
 import com.project.p2p.client.service.CoordinationServiceClient;
+import com.project.p2p.client.ui.common.AppIcons;
+import com.project.p2p.client.ui.common.AvatarView;
+import com.project.p2p.client.ui.common.ThemeManager;
 import com.project.p2p.common.crypto.CryptoPrimitives;
 import com.project.p2p.common.network.MessageDeliveryState;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
 
 import java.security.PublicKey;
 import java.util.*;
@@ -26,8 +32,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Main P2P Chat Application Window.
- * Coordinates sidebar peer discovery, real-time encrypted messaging,
- * delivery/read state tracking, and security diagnostics.
+ * GitHub Primer-inspired 3-pane adaptive layout coordinating peer discovery,
+ * end-to-end encrypted messaging, message delivery states, and cryptographic identity inspection.
  */
 public class MainChatView extends BorderPane {
 
@@ -39,7 +45,8 @@ public class MainChatView extends BorderPane {
 
     // Contacts & Peer Discovery
     private final ObservableList<OnlinePeer> onlinePeersList = FXCollections.observableArrayList();
-    private final ListView<OnlinePeer> peerListView = new ListView<>(onlinePeersList);
+    private final FilteredList<OnlinePeer> filteredPeersList = new FilteredList<>(onlinePeersList, p -> true);
+    private final ListView<OnlinePeer> peerListView = new ListView<>(filteredPeersList);
     private final Map<String, ObservableList<ChatMessageModel>> conversationHistory = new ConcurrentHashMap<>();
 
     // Active Chat State
@@ -48,13 +55,18 @@ public class MainChatView extends BorderPane {
     private final ListView<ChatMessageModel> messageListView = new ListView<>(activeMessages);
 
     // Chat Area Components
+    private final HBox activePeerAvatarContainer = new HBox();
     private final Label activePeerHeaderLabel = new Label("Select a peer to chat");
-    private final Label activePeerStatusLabel = new Label("No active session");
+    private final Label activePeerStatusBadge = new Label("No active conversation");
     private final TextField messageInputField = new TextField();
     private final Button sendButton = new Button("Send");
+    private final Button toggleInspectorButton = new Button();
+    private final StackPane chatCenterStack = new StackPane();
+    private final VBox chatEmptyState = new VBox();
 
     // Right Sidebar: Security & Network Diagnostics
     private final PeerInfoPanel peerInfoPanel;
+    private boolean inspectorVisible = true;
 
     // Heartbeat & Discovery Scheduler
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -63,7 +75,7 @@ public class MainChatView extends BorderPane {
         return t;
     });
 
-    private String presenceSessionId;
+    private final String presenceSessionId;
 
     public MainChatView(
             String localUsername,
@@ -81,6 +93,8 @@ public class MainChatView extends BorderPane {
         this.presenceSessionId = presenceSessionId;
         this.peerInfoPanel = new PeerInfoPanel(trustStore);
 
+        getStyleClass().add("app-window");
+
         initUi();
         initNetworkingHooks();
         startPeriodicDiscovery();
@@ -90,44 +104,90 @@ public class MainChatView extends BorderPane {
         setLeft(buildSidebar());
         setCenter(buildChatArea());
         setRight(peerInfoPanel);
+
+        peerInfoPanel.setOnCloseRequested(this::toggleInspector);
+
+        // Adaptive listener: collapse inspector if window gets narrow
+        widthProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.doubleValue() < 940 && inspectorVisible) {
+                setInspectorVisible(false);
+            }
+        });
     }
 
     private VBox buildSidebar() {
         VBox sidebar = new VBox(10);
-        sidebar.setPadding(new Insets(12));
-        sidebar.setPrefWidth(220);
-        sidebar.setStyle("-fx-background-color: #0f172a;");
+        sidebar.getStyleClass().add("sidebar-container");
+        sidebar.setPadding(new Insets(14));
+        sidebar.setPrefWidth(260);
+        sidebar.setMinWidth(240);
+        sidebar.setMaxWidth(300);
 
-        Label myProfileLabel = new Label("Logged in as: " + localUsername);
-        myProfileLabel.setStyle("-fx-text-fill: #38bdf8; -fx-font-weight: bold; -fx-font-size: 13px;");
+        // App Brand Header with Theme Toggle
+        Node shieldLogo = AppIcons.create(AppIcons.Icon.SHIELD, 20, Color.web("#2f81f7"));
+        Label brandTitle = new Label("P2P Secure Chat");
+        brandTitle.getStyleClass().add("brand-title");
 
-        Label portLabel = new Label("Listening Port: " + peerNetworkService.getListeningPort());
-        portLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
+        Button themeToggleBtn = new Button();
+        themeToggleBtn.setGraphic(AppIcons.create(ThemeManager.isDarkMode() ? AppIcons.Icon.SUN : AppIcons.Icon.MOON, 14, Color.web("#8b949e")));
+        themeToggleBtn.setStyle("-fx-background-color: transparent; -fx-padding: 4; -fx-cursor: hand;");
+        themeToggleBtn.setTooltip(new Tooltip("Toggle Dark / Light Theme"));
+        themeToggleBtn.setOnAction(e -> {
+            ThemeManager.toggleTheme(getScene());
+            themeToggleBtn.setGraphic(AppIcons.create(ThemeManager.isDarkMode() ? AppIcons.Icon.SUN : AppIcons.Icon.MOON, 14, Color.web("#8b949e")));
+        });
 
-        Label contactsTitle = new Label("ONLINE PEERS");
-        contactsTitle.setStyle("-fx-text-fill: #64748b; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 10 0 0 0;");
+        Region brandSpacer = new Region();
+        HBox.setHgrow(brandSpacer, Priority.ALWAYS);
+        HBox brandBar = new HBox(8, shieldLogo, brandTitle, brandSpacer, themeToggleBtn);
+        brandBar.setAlignment(Pos.CENTER_LEFT);
 
-        peerListView.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(OnlinePeer item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                    setStyle("-fx-background-color: transparent;");
-                } else {
-                    Label name = new Label(item.username());
-                    name.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 13px;");
-                    Label addr = new Label(item.observedIp() + ":" + item.listeningPort());
-                    addr.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 10px;");
+        // Local User Profile Card
+        AvatarView myAvatar = new AvatarView(localUsername, 32, true, true);
+        Label myProfileLabel = new Label(localUsername);
+        myProfileLabel.getStyleClass().add("user-profile-name");
 
-                    VBox box = new VBox(2, name, addr);
-                    box.setPadding(new Insets(4, 0, 4, 0));
-                    setGraphic(box);
-                    setStyle("-fx-background-color: transparent;");
-                }
+        Label portBadge = new Label(":" + peerNetworkService.getListeningPort());
+        portBadge.getStyleClass().add("listening-port-badge");
+        Tooltip.install(portBadge, new Tooltip("P2P Listening Port: " + peerNetworkService.getListeningPort()));
+
+        VBox userDetails = new VBox(2, myProfileLabel, portBadge);
+        HBox userCard = new HBox(10, myAvatar, userDetails);
+        userCard.getStyleClass().add("user-profile-card");
+        userCard.setAlignment(Pos.CENTER_LEFT);
+
+        // Peer Search Field
+        TextField searchField = new TextField();
+        searchField.setPromptText("Filter peers...");
+        searchField.getStyleClass().add("peer-search-field");
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null || newVal.isBlank()) {
+                filteredPeersList.setPredicate(p -> true);
+            } else {
+                String filter = newVal.trim().toLowerCase();
+                filteredPeersList.setPredicate(p -> p.username().toLowerCase().contains(filter));
             }
         });
+
+        Label contactsTitle = new Label("ONLINE PEERS");
+        contactsTitle.getStyleClass().add("sidebar-section-title");
+
+        // Custom Peer List View
+        peerListView.getStyleClass().add("peer-list-view");
+        peerListView.setCellFactory(lv -> new PeerListCell(peerNetworkService));
+
+        // Empty state when no peers online
+        VBox emptyPeersState = new VBox(6);
+        emptyPeersState.setAlignment(Pos.CENTER);
+        emptyPeersState.setPadding(new Insets(24, 10, 24, 10));
+        Node usersIcon = AppIcons.create(AppIcons.Icon.USERS, 28, Color.web("#6e7681"));
+        Label emptyTitle = new Label("No Peers Online");
+        emptyTitle.getStyleClass().add("empty-state-title");
+        Label emptySubtitle = new Label("Peers running on your network will appear here automatically.");
+        emptySubtitle.getStyleClass().add("empty-state-subtitle");
+        emptySubtitle.setWrapText(true);
+        emptyPeersState.getChildren().addAll(usersIcon, emptyTitle, emptySubtitle);
+        peerListView.setPlaceholder(emptyPeersState);
 
         peerListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
@@ -135,51 +195,100 @@ public class MainChatView extends BorderPane {
             }
         });
 
-        Button refreshBtn = new Button("↻ Refresh Peers");
+        // Refresh Peers Action
+        Button refreshBtn = new Button("Refresh Peers");
+        refreshBtn.setGraphic(AppIcons.create(AppIcons.Icon.REFRESH, 13, Color.web("#8b949e")));
         refreshBtn.setMaxWidth(Double.MAX_VALUE);
-        refreshBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #cbd5e1; -fx-font-size: 11px;");
+        refreshBtn.setStyle("-fx-background-color: -color-canvas-overlay; -fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-background-radius: 6; -fx-font-size: 11px; -fx-padding: 6 12; -fx-cursor: hand;");
         refreshBtn.setOnAction(e -> refreshOnlinePeers());
 
         VBox.setVgrow(peerListView, Priority.ALWAYS);
-        sidebar.getChildren().addAll(myProfileLabel, portLabel, new Separator(), contactsTitle, peerListView, refreshBtn);
+        sidebar.getChildren().addAll(brandBar, userCard, searchField, contactsTitle, peerListView, refreshBtn);
         return sidebar;
     }
 
     private VBox buildChatArea() {
         VBox chatArea = new VBox();
-        chatArea.setStyle("-fx-background-color: #f8fafc;");
+        chatArea.getStyleClass().add("chat-area-container");
 
         // Top Header
-        VBox headerBox = new VBox(2, activePeerHeaderLabel, activePeerStatusLabel);
-        headerBox.setPadding(new Insets(12, 16, 12, 16));
-        headerBox.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+        activePeerHeaderLabel.getStyleClass().add("chat-header-title");
+        activePeerStatusBadge.getStyleClass().add("status-badge-disconnected");
 
-        activePeerHeaderLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        activePeerStatusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
+        VBox titleBox = new VBox(3, activePeerHeaderLabel, activePeerStatusBadge);
+        titleBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox peerHeaderInfo = new HBox(12, activePeerAvatarContainer, titleBox);
+        peerHeaderInfo.setAlignment(Pos.CENTER_LEFT);
+
+        // Security Inspector Toggle Button
+        toggleInspectorButton.setGraphic(AppIcons.create(AppIcons.Icon.SHIELD_CHECK, 16, Color.web("#2f81f7")));
+        toggleInspectorButton.setText("Security");
+        toggleInspectorButton.setStyle("-fx-background-color: -color-canvas-overlay; -fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 12px; -fx-font-weight: bold; -fx-cursor: hand;");
+        toggleInspectorButton.setTooltip(new Tooltip("Toggle Security & Identity Inspector"));
+        toggleInspectorButton.setOnAction(e -> toggleInspector());
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+
+        HBox headerBar = new HBox(peerHeaderInfo, headerSpacer, toggleInspectorButton);
+        headerBar.getStyleClass().add("chat-header-bar");
+        headerBar.setAlignment(Pos.CENTER_LEFT);
 
         // Message List
+        messageListView.getStyleClass().add("chat-message-list");
         messageListView.setCellFactory(lv -> new ChatMessageCell());
-        messageListView.setStyle("-fx-background-color: #ffffff; -fx-border-width: 0;");
-        VBox.setVgrow(messageListView, Priority.ALWAYS);
 
-        // Input Area
-        messageInputField.setPromptText("Type an end-to-end encrypted message...");
-        messageInputField.setStyle("-fx-padding: 8 12; -fx-background-radius: 6; -fx-border-color: #cbd5e1; -fx-border-radius: 6;");
+        // Empty conversation splash
+        chatEmptyState.setAlignment(Pos.CENTER);
+        chatEmptyState.setPadding(new Insets(40));
+        chatEmptyState.setSpacing(10);
+        Node splashLock = AppIcons.create(AppIcons.Icon.LOCK, 36, Color.web("#6e7681"));
+        Label splashTitle = new Label("End-to-End Encrypted Messaging");
+        splashTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: -color-fg-muted;");
+        Label splashSubtitle = new Label("Select a peer from the left sidebar to establish a secure peer-to-peer session.");
+        splashSubtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: -color-fg-subtle; -fx-text-alignment: center;");
+        splashSubtitle.setWrapText(true);
+        splashSubtitle.setMaxWidth(380);
+        chatEmptyState.getChildren().addAll(splashLock, splashTitle, splashSubtitle);
+
+        chatCenterStack.getChildren().addAll(messageListView, chatEmptyState);
+        VBox.setVgrow(chatCenterStack, Priority.ALWAYS);
+
+        // Input Composer Bar
+        messageInputField.setPromptText("Type an end-to-end encrypted message (Enter to send)...");
+        messageInputField.getStyleClass().add("chat-input-field");
+        messageInputField.setOnAction(e -> handleSendMessage());
         HBox.setHgrow(messageInputField, Priority.ALWAYS);
 
         sendButton.setDefaultButton(true);
-        sendButton.setStyle("-fx-background-color: #2563eb; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 18; -fx-background-radius: 6;");
+        sendButton.setGraphic(AppIcons.create(AppIcons.Icon.SEND, 14, Color.WHITE));
+        sendButton.setStyle("-fx-background-color: -color-accent-emphasis; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 18; -fx-background-radius: 8; -fx-cursor: hand;");
         sendButton.setOnAction(e -> handleSendMessage());
         sendButton.setDisable(true);
         messageInputField.setDisable(true);
 
         HBox inputBar = new HBox(10, messageInputField, sendButton);
-        inputBar.setPadding(new Insets(12, 16, 12, 16));
-        inputBar.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-width: 1 0 0 0;");
+        inputBar.getStyleClass().add("chat-input-bar");
         inputBar.setAlignment(Pos.CENTER);
 
-        chatArea.getChildren().addAll(headerBox, messageListView, inputBar);
+        chatArea.getChildren().addAll(headerBar, chatCenterStack, inputBar);
         return chatArea;
+    }
+
+    private void toggleInspector() {
+        setInspectorVisible(!inspectorVisible);
+    }
+
+    private void setInspectorVisible(boolean visible) {
+        this.inspectorVisible = visible;
+        if (visible) {
+            setRight(peerInfoPanel);
+            toggleInspectorButton.setStyle("-fx-background-color: -color-accent-subtle; -fx-border-color: -color-accent-fg; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 12px; -fx-font-weight: bold; -fx-cursor: hand;");
+        } else {
+            setRight(null);
+            toggleInspectorButton.setStyle("-fx-background-color: -color-canvas-overlay; -fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 12px; -fx-font-weight: bold; -fx-cursor: hand;");
+        }
     }
 
     private void initNetworkingHooks() {
@@ -189,29 +298,10 @@ public class MainChatView extends BorderPane {
                 Platform.runLater(() -> {
                     String peerUser = session.getPeerUsername();
                     if (peerUser != null && peerUser.equalsIgnoreCase(activePeerUsername)) {
-                        switch (newState) {
-                            case CONNECTING -> activePeerStatusLabel.setText("Connecting to peer...");
-                            case HANDSHAKING -> activePeerStatusLabel.setText("Verifying cryptographic handshake...");
-                            case ESTABLISHED -> {
-                                activePeerStatusLabel.setText("Encrypted Session Active (AES-256-GCM)");
-                                sendButton.setDisable(false);
-                                messageInputField.setDisable(false);
-                            }
-                            case FAILED -> {
-                                activePeerStatusLabel.setText("Handshake Failed");
-                                sendButton.setDisable(true);
-                            }
-                            case CLOSED -> {
-                                EncryptedPeerSession active = peerNetworkService.getSession(peerUser);
-                                if (active == null || !active.isSecureEstablished()) {
-                                    activePeerStatusLabel.setText("Peer disconnected");
-                                    sendButton.setDisable(true);
-                                    messageInputField.setDisable(true);
-                                }
-                            }
-                        }
+                        updateSessionStatusUI(newState);
                         peerInfoPanel.updatePeer(peerUser, session.getPeerFingerprint(), session);
                     }
+                    peerListView.refresh();
                 });
             }
 
@@ -220,11 +310,10 @@ public class MainChatView extends BorderPane {
                 Platform.runLater(() -> {
                     String peerUser = session.getPeerUsername();
                     if (peerUser != null && peerUser.equalsIgnoreCase(activePeerUsername)) {
-                        activePeerStatusLabel.setText("Encrypted Session Active (AES-256-GCM)");
-                        sendButton.setDisable(false);
-                        messageInputField.setDisable(false);
+                        updateSessionStatusUI(SessionState.ESTABLISHED);
                         peerInfoPanel.updatePeer(peerUser, session.getPeerFingerprint(), session);
                     }
+                    peerListView.refresh();
                 });
             }
 
@@ -279,59 +368,94 @@ public class MainChatView extends BorderPane {
                     if (peerUser != null && peerUser.equalsIgnoreCase(activePeerUsername)) {
                         EncryptedPeerSession active = peerNetworkService.getSession(peerUser);
                         if (active == null || !active.isSecureEstablished()) {
-                            activePeerStatusLabel.setText("Peer disconnected");
-                            sendButton.setDisable(true);
-                            messageInputField.setDisable(true);
+                            updateSessionStatusUI(SessionState.CLOSED);
                             peerInfoPanel.updatePeer(peerUser, session.getPeerFingerprint(), null);
                         }
                     }
+                    peerListView.refresh();
                 });
             }
         });
     }
 
+    private void updateSessionStatusUI(SessionState state) {
+        activePeerStatusBadge.getStyleClass().removeAll("status-badge-established", "status-badge-pending", "status-badge-disconnected");
+        switch (state) {
+            case CONNECTING -> {
+                activePeerStatusBadge.setText("CONNECTING...");
+                activePeerStatusBadge.getStyleClass().add("status-badge-pending");
+                sendButton.setDisable(true);
+                messageInputField.setDisable(true);
+            }
+            case HANDSHAKING -> {
+                activePeerStatusBadge.setText("VERIFYING HANDSHAKE...");
+                activePeerStatusBadge.getStyleClass().add("status-badge-pending");
+                sendButton.setDisable(true);
+                messageInputField.setDisable(true);
+            }
+            case ESTABLISHED -> {
+                activePeerStatusBadge.setText("E2E ENCRYPTED (AES-256-GCM)");
+                activePeerStatusBadge.getStyleClass().add("status-badge-established");
+                sendButton.setDisable(false);
+                messageInputField.setDisable(false);
+            }
+            case FAILED -> {
+                activePeerStatusBadge.setText("HANDSHAKE FAILED");
+                activePeerStatusBadge.getStyleClass().add("status-badge-disconnected");
+                sendButton.setDisable(true);
+                messageInputField.setDisable(true);
+            }
+            case CLOSED -> {
+                activePeerStatusBadge.setText("PEER DISCONNECTED");
+                activePeerStatusBadge.getStyleClass().add("status-badge-disconnected");
+                sendButton.setDisable(true);
+                messageInputField.setDisable(true);
+            }
+        }
+    }
+
     private void selectPeer(OnlinePeer peer) {
         if (peer.username().equalsIgnoreCase(localUsername)) {
             activePeerHeaderLabel.setText(peer.username() + " (Self)");
-            activePeerStatusLabel.setText("Cannot message yourself");
+            activePeerStatusBadge.setText("Cannot message yourself");
+            activePeerStatusBadge.getStyleClass().removeAll("status-badge-established", "status-badge-pending", "status-badge-disconnected");
+            activePeerStatusBadge.getStyleClass().add("status-badge-disconnected");
+            activePeerAvatarContainer.getChildren().setAll(new AvatarView(peer.username(), 36));
             sendButton.setDisable(true);
             messageInputField.setDisable(true);
+            chatEmptyState.setVisible(true);
             peerInfoPanel.updatePeer(peer.username(), null, null);
             return;
         }
 
         this.activePeerUsername = peer.username().trim().toLowerCase();
-        activePeerHeaderLabel.setText("Chat with " + peer.username());
+        activePeerHeaderLabel.setText(peer.username());
+        activePeerAvatarContainer.getChildren().setAll(new AvatarView(peer.username(), 36, true, true));
 
         // Switch message list to selected peer
         ObservableList<ChatMessageModel> history = conversationHistory.computeIfAbsent(
                 peer.username().toLowerCase(), k -> FXCollections.observableArrayList()
         );
         activeMessages.setAll(history);
+        chatEmptyState.setVisible(activeMessages.isEmpty());
 
         // Check if existing session is already established
         EncryptedPeerSession existing = peerNetworkService.getSession(peer.username());
         if (existing != null && existing.isSecureEstablished() && existing.getConnection().isConnected()) {
-            activePeerStatusLabel.setText("Encrypted Session Active (AES-256-GCM)");
-            sendButton.setDisable(false);
-            messageInputField.setDisable(false);
+            updateSessionStatusUI(SessionState.ESTABLISHED);
             peerInfoPanel.updatePeer(peer.username(), existing.getPeerFingerprint(), existing);
             return;
         }
 
         // If existing connection is underway, await completion
         if (existing != null && (existing.getState() == SessionState.CONNECTING || existing.getState() == SessionState.HANDSHAKING)) {
-            activePeerStatusLabel.setText("Connecting & verifying handshake...");
-            sendButton.setDisable(true);
-            messageInputField.setDisable(true);
+            updateSessionStatusUI(existing.getState());
             peerInfoPanel.updatePeer(peer.username(), null, existing);
             return;
         }
 
         // Establish session asynchronously
-        activePeerStatusLabel.setText("Connecting & verifying handshake...");
-        sendButton.setDisable(true);
-        messageInputField.setDisable(true);
+        updateSessionStatusUI(SessionState.CONNECTING);
         peerInfoPanel.updatePeer(peer.username(), null, null);
 
         PublicKey peerIdentityKey = null;
@@ -351,12 +475,12 @@ public class MainChatView extends BorderPane {
             Platform.runLater(() -> {
                 if (peer.username().equalsIgnoreCase(activePeerUsername)) {
                     if (error != null) {
-                        activePeerStatusLabel.setText("Connection failed: " + error.getMessage());
+                        activePeerStatusBadge.setText("CONNECTION FAILED");
+                        activePeerStatusBadge.getStyleClass().removeAll("status-badge-established", "status-badge-pending", "status-badge-disconnected");
+                        activePeerStatusBadge.getStyleClass().add("status-badge-disconnected");
                         peerInfoPanel.updatePeer(peer.username(), null, null);
                     } else if (session != null && session.isSecureEstablished()) {
-                        activePeerStatusLabel.setText("Encrypted Session Active (AES-256-GCM)");
-                        sendButton.setDisable(false);
-                        messageInputField.setDisable(false);
+                        updateSessionStatusUI(SessionState.ESTABLISHED);
                         peerInfoPanel.updatePeer(peer.username(), session.getPeerFingerprint(), session);
                     }
                 }
@@ -372,7 +496,7 @@ public class MainChatView extends BorderPane {
 
         EncryptedPeerSession session = peerNetworkService.getSession(activePeerUsername);
         if (session == null || !session.isSecureEstablished()) {
-            activePeerStatusLabel.setText("Cannot send: Session not established");
+            activePeerStatusBadge.setText("CANNOT SEND: SESSION NOT ESTABLISHED");
             return;
         }
 
@@ -404,6 +528,7 @@ public class MainChatView extends BorderPane {
         history.add(msg);
         if (peerUser.equalsIgnoreCase(activePeerUsername)) {
             activeMessages.add(msg);
+            chatEmptyState.setVisible(false);
             messageListView.scrollTo(activeMessages.size() - 1);
         }
     }
@@ -421,10 +546,8 @@ public class MainChatView extends BorderPane {
     }
 
     private void startPeriodicDiscovery() {
-        // Immediate fetch
         refreshOnlinePeers();
 
-        // Heartbeat every 20 seconds, peer discovery every 10 seconds
         scheduler.scheduleAtFixedRate(() -> {
             if (presenceSessionId != null) {
                 coordinationClient.sendHeartbeatAsync(presenceSessionId);

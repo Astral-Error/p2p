@@ -6,6 +6,7 @@ import com.project.p2p.client.network.PeerNetworkService;
 import com.project.p2p.client.service.CoordinationServiceClient;
 import com.project.p2p.client.ui.AuthView;
 import com.project.p2p.client.ui.MainChatView;
+import com.project.p2p.client.ui.common.ThemeManager;
 import com.project.p2p.common.crypto.CryptoPrimitives;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -28,16 +29,18 @@ public class P2pClientApp extends Application {
 
     @Override
     public void start(Stage stage) {
+        ThemeManager.initialize();
+
         this.primaryStage = stage;
         this.coordinationClient = new CoordinationServiceClient();
         this.keyManager = new ClientKeyManager();
         this.trustStore = new TrustStore();
 
         stage.setTitle("P2P Encrypted Chat");
-        stage.setWidth(980);
-        stage.setHeight(680);
-        stage.setMinWidth(800);
-        stage.setMinHeight(500);
+        stage.setWidth(1060);
+        stage.setHeight(700);
+        stage.setMinWidth(850);
+        stage.setMinHeight(550);
 
         showAuthView();
         stage.show();
@@ -48,7 +51,8 @@ public class P2pClientApp extends Application {
             initializeSessionAndShowMain(username, passphrase);
         });
 
-        Scene scene = new Scene(authView, 980, 680);
+        Scene scene = new Scene(authView, 1060, 700);
+        ThemeManager.applyCustomStylesheet(scene);
         primaryStage.setScene(scene);
     }
 
@@ -98,7 +102,8 @@ public class P2pClientApp extends Application {
                             peerNetworkService,
                             presenceSession.sessionId()
                     );
-                    Scene scene = new Scene(mainChatView, 980, 680);
+                    Scene scene = new Scene(mainChatView, 1060, 700);
+                    ThemeManager.applyCustomStylesheet(scene);
                     primaryStage.setScene(scene);
                 });
             }).exceptionally(ex -> {

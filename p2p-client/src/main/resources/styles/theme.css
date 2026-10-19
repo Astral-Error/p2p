@@ -1,0 +1,522 @@
+/* ==========================================================================
+   P2P Encrypted Chat - GitHub Primer Design System
+   Visual foundation: Dark-first, premium desktop messenger.
+   ========================================================================== */
+
+.root, .theme-dark {
+    /* Primer Dark Color Tokens */
+    -color-canvas-default: #0d1117;
+    -color-canvas-subtle: #161b22;
+    -color-canvas-overlay: #21262d;
+    -color-canvas-inset: #010409;
+
+    -color-border-default: #30363d;
+    -color-border-muted: #21262d;
+    -color-border-subtle: rgba(240, 246, 252, 0.1);
+
+    -color-fg-default: #f0f6fc;
+    -color-fg-muted: #8b949e;
+    -color-fg-subtle: #6e7681;
+    -color-fg-on-emphasis: #ffffff;
+
+    -color-accent-fg: #2f81f7;
+    -color-accent-emphasis: #1f6feb;
+    -color-accent-muted: rgba(56, 139, 253, 0.4);
+    -color-accent-subtle: rgba(56, 139, 253, 0.15);
+
+    -color-success-fg: #3fb950;
+    -color-success-emphasis: #238636;
+    -color-success-subtle: rgba(46, 160, 67, 0.15);
+
+    -color-warning-fg: #d29922;
+    -color-warning-emphasis: #9e6a03;
+    -color-warning-subtle: rgba(187, 128, 9, 0.15);
+
+    -color-danger-fg: #f85149;
+    -color-danger-emphasis: #da3633;
+    -color-danger-subtle: rgba(248, 81, 73, 0.15);
+
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -fx-font-size: 13px;
+    -fx-background-color: -color-canvas-default;
+}
+
+.theme-light {
+    /* Primer Light Color Tokens */
+    -color-canvas-default: #ffffff;
+    -color-canvas-subtle: #f6f8fa;
+    -color-canvas-overlay: #ffffff;
+    -color-canvas-inset: #f6f8fa;
+
+    -color-border-default: #d0d7de;
+    -color-border-muted: #afb8c1;
+    -color-border-subtle: rgba(31, 35, 40, 0.1);
+
+    -color-fg-default: #1f2328;
+    -color-fg-muted: #656d76;
+    -color-fg-subtle: #8c959f;
+    -color-fg-on-emphasis: #ffffff;
+
+    -color-accent-fg: #0969da;
+    -color-accent-emphasis: #0969da;
+    -color-accent-muted: rgba(9, 105, 218, 0.4);
+    -color-accent-subtle: rgba(9, 105, 218, 0.15);
+
+    -color-success-fg: #1a7f37;
+    -color-success-emphasis: #1f883d;
+    -color-success-subtle: rgba(31, 136, 61, 0.15);
+
+    -color-warning-fg: #9a6700;
+    -color-warning-emphasis: #9a6700;
+    -color-warning-subtle: rgba(154, 103, 0, 0.15);
+
+    -color-danger-fg: #cf222e;
+    -color-danger-emphasis: #cf222e;
+    -color-danger-subtle: rgba(207, 34, 46, 0.15);
+
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -fx-font-size: 13px;
+    -fx-background-color: -color-canvas-default;
+}
+
+/* Base Window Background */
+.app-window {
+    -fx-background-color: -color-canvas-default;
+}
+
+/* ==========================================================================
+   Sidebar: Peer Discovery & User Profile
+   ========================================================================== */
+.sidebar-container {
+    -fx-background-color: -color-canvas-subtle;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 0 1 0 0;
+}
+
+.brand-header {
+    -fx-padding: 16 16 12 16;
+}
+
+.brand-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.brand-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.user-profile-card {
+    -fx-background-color: -color-canvas-default;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 10 12;
+}
+
+.user-profile-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.listening-port-badge {
+    -fx-background-color: -color-accent-subtle;
+    -fx-border-color: -color-accent-muted;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 2 6;
+    -fx-font-size: 11px;
+    -fx-font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    -fx-text-fill: -color-accent-fg;
+}
+
+.sidebar-section-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-subtle;
+    -fx-padding: 14 0 6 0;
+}
+
+/* Peer Search Field */
+.peer-search-field {
+    -fx-background-color: -color-canvas-default;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: -color-fg-default;
+    -fx-prompt-text-fill: -color-fg-subtle;
+    -fx-padding: 6 10;
+}
+
+.peer-search-field:focused {
+    -fx-border-color: -color-accent-fg;
+    -fx-background-color: -color-canvas-default;
+}
+
+/* Peer List View */
+.peer-list-view {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-width: 0;
+}
+
+.peer-list-view .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+}
+
+.peer-list-view .scroll-bar:vertical .thumb {
+    -fx-background-color: -color-border-default;
+    -fx-background-radius: 4;
+}
+
+.peer-list-view .scroll-bar:horizontal {
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+    -fx-padding: 0;
+}
+
+.peer-list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 6 8;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+
+.peer-list-cell:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+}
+
+.peer-list-cell:selected {
+    -fx-background-color: -color-canvas-overlay;
+    -fx-border-color: -color-accent-fg transparent transparent transparent;
+}
+
+.peer-cell-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.peer-cell-address {
+    -fx-font-size: 11px;
+    -fx-font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    -fx-text-fill: -color-fg-muted;
+}
+
+/* Empty State */
+.empty-state-pane {
+    -fx-padding: 24 16;
+    -fx-alignment: center;
+}
+
+.empty-state-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.empty-state-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-subtle;
+    -fx-text-alignment: center;
+}
+
+/* ==========================================================================
+   Main Conversation Area
+   ========================================================================== */
+.chat-area-container {
+    -fx-background-color: -color-canvas-default;
+}
+
+/* Chat Header */
+.chat-header-bar {
+    -fx-background-color: -color-canvas-subtle;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 12 20;
+}
+
+.chat-header-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.status-badge-established {
+    -fx-background-color: -color-success-subtle;
+    -fx-border-color: -color-success-emphasis;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 3 10;
+    -fx-text-fill: -color-success-fg;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.status-badge-pending {
+    -fx-background-color: -color-warning-subtle;
+    -fx-border-color: -color-warning-emphasis;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 3 10;
+    -fx-text-fill: -color-warning-fg;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.status-badge-disconnected {
+    -fx-background-color: rgba(110, 118, 129, 0.15);
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 3 10;
+    -fx-text-fill: -color-fg-muted;
+    -fx-font-size: 11px;
+}
+
+/* Chat Message List */
+.chat-message-list {
+    -fx-background-color: -color-canvas-default;
+    -fx-background-insets: 0;
+    -fx-padding: 12 16;
+    -fx-border-width: 0;
+}
+
+.chat-message-list .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+}
+
+.chat-message-list .scroll-bar:vertical .thumb {
+    -fx-background-color: -color-border-default;
+    -fx-background-radius: 4;
+}
+
+.chat-message-list .scroll-bar:horizontal {
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+    -fx-padding: 0;
+}
+
+/* Message Bubbles */
+.message-bubble-outgoing {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-background-radius: 14 14 3 14;
+    -fx-padding: 10 14;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.25), 6, 0, 0, 2);
+}
+
+.message-bubble-incoming {
+    -fx-background-color: -color-canvas-overlay;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 14 14 14 3;
+    -fx-border-width: 1;
+    -fx-background-radius: 14 14 14 3;
+    -fx-padding: 10 14;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.15), 4, 0, 0, 1);
+}
+
+.message-text-outgoing {
+    -fx-font-size: 13px;
+    -fx-text-fill: -color-fg-on-emphasis;
+    -fx-fill: -color-fg-on-emphasis;
+    -fx-line-spacing: 2px;
+}
+
+.message-text-incoming {
+    -fx-font-size: 13px;
+    -fx-text-fill: -color-fg-default;
+    -fx-fill: -color-fg-default;
+    -fx-line-spacing: 2px;
+}
+
+.message-meta-outgoing {
+    -fx-font-size: 10px;
+    -fx-text-fill: rgba(255, 255, 255, 0.7);
+}
+
+.message-meta-incoming {
+    -fx-font-size: 10px;
+    -fx-text-fill: -color-fg-subtle;
+}
+
+/* Chat Input Bar */
+.chat-input-bar {
+    -fx-background-color: -color-canvas-subtle;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 14 20;
+}
+
+.chat-input-field {
+    -fx-background-color: -color-canvas-default;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: -color-fg-default;
+    -fx-prompt-text-fill: -color-fg-subtle;
+    -fx-padding: 9 14;
+    -fx-font-size: 13px;
+}
+
+.chat-input-field:focused {
+    -fx-border-color: -color-accent-fg;
+    -fx-background-color: -color-canvas-default;
+}
+
+/* ==========================================================================
+   Security & Identity Inspector (Right Sidebar)
+   ========================================================================== */
+.inspector-container {
+    -fx-background-color: -color-canvas-subtle;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 0 0 0 1;
+    -fx-padding: 16;
+}
+
+.inspector-header-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-subtle;
+    -fx-letter-spacing: 0.5px;
+}
+
+.inspector-card {
+    -fx-background-color: -color-canvas-default;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 12 14;
+}
+
+.inspector-card-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.fingerprint-box {
+    -fx-background-color: -color-canvas-inset;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8 10;
+    -fx-font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.trust-badge-verified {
+    -fx-background-color: -color-success-subtle;
+    -fx-border-color: -color-success-emphasis;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4 8;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-success-fg;
+}
+
+.trust-badge-unverified {
+    -fx-background-color: rgba(110, 118, 129, 0.15);
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4 8;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.trust-badge-danger {
+    -fx-background-color: -color-danger-subtle;
+    -fx-border-color: -color-danger-emphasis;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4 8;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-danger-fg;
+}
+
+.telemetry-row-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-subtle;
+}
+
+.telemetry-row-value {
+    -fx-font-size: 11px;
+    -fx-font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    -fx-text-fill: -color-fg-default;
+}
+
+/* ==========================================================================
+   Authentication View
+   ========================================================================== */
+.auth-root-pane {
+    -fx-background-color: -color-canvas-default;
+}
+
+.auth-card {
+    -fx-background-color: -color-canvas-subtle;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 32;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.4), 20, 0, 0, 8);
+}
+
+.auth-header-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.auth-header-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.auth-field-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.auth-field-helper {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-subtle;
+}
+
+.auth-text-field {
+    -fx-background-color: -color-canvas-default;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: -color-fg-default;
+    -fx-prompt-text-fill: -color-fg-subtle;
+    -fx-padding: 8 12;
+    -fx-font-size: 13px;
+}
+
+.auth-text-field:focused {
+    -fx-border-color: -color-accent-fg;
+    -fx-background-color: -color-canvas-default;
+}
+
+.auth-tab-selected {
+    -fx-background-color: -color-canvas-overlay;
+    -fx-border-color: -color-accent-fg transparent transparent transparent;
+    -fx-text-fill: -color-fg-default;
+    -fx-font-weight: bold;
+}
+
+.auth-tab-unselected {
+    -fx-background-color: transparent;
+    -fx-text-fill: -color-fg-muted;
+}
