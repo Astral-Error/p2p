@@ -1,0 +1,4 @@
+rootProject.name = 'p2p'
+include 'p2p-common'
+include 'p2p-server'
+include 'p2p-client'
